@@ -72,7 +72,7 @@ func buildRequestForAddPortMapping(url string, localHost string, localPort, remo
 	childList3 := Node{Name: "NewProtocol", Content: protocol}
 	childList4 := Node{Name: "NewEnabled", Content: "1"}
 	childList5 := Node{Name: "NewInternalClient", Content: localHost}
-	childList6 := Node{Name: "NewLeaseDuration", Content: "0"}
+	childList6 := Node{Name: "NewLeaseDuration", Content: "60"}
 	childList7 := Node{Name: "NewPortMappingDescription", Content: "shangate"}
 	childList8 := Node{Name: "NewRemoteHost"}
 	childTwo.AddChild(childList1)
