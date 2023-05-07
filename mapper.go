@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Node struct {
@@ -35,10 +36,17 @@ func (n *Node) BuildXML() string {
 }
 
 func SendRequestForAddPortMapping(url string, localHost string, localPort, remotePort int, protocol string) bool {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+	}
+	client := http.Client{Transport: tr, Timeout: time.Second}
+
 	request := buildRequestForAddPortMapping(url, localHost, localPort, remotePort, protocol)
-	response, _ := http.DefaultClient.Do(request)
-	if response.StatusCode == 200 {
-		return true
+	response, _ := client.Do(request)
+	if response != nil {
+		if response.StatusCode == 200 {
+			return true
+		}
 	}
 	return false
 }
@@ -87,10 +95,16 @@ func buildRequestForAddPortMapping(url string, localHost string, localPort, remo
 }
 
 func SendRequestForRemovePortMapping(url string, remotePort int, protocol string) error {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+	}
+	client := http.Client{Transport: tr, Timeout: time.Second}
 	request := buildRequestForRemovePortMapping(url, remotePort, protocol)
-	response, _ := http.DefaultClient.Do(request)
-	if response.StatusCode == 200 {
-		return nil
+	response, _ := client.Do(request)
+	if response != nil {
+		if response.StatusCode == 200 {
+			return nil
+		}
 	}
 	return fmt.Errorf("send request for remove port mapping error")
 }

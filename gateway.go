@@ -3,13 +3,14 @@ package upnp
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type Gateway struct {
 	Active        bool
-	LocalHost     string
+	LocalAddr     string
 	GatewayName   string
 	Host          string
 	DeviceDescUrl string
@@ -33,7 +34,10 @@ func (gateway *Gateway) Send() bool {
 		gateway.Active = false
 		return false
 	}
-	gateway.resolve(result)
+	err := gateway.resolve(result)
+	if err != nil {
+		return false
+	}
 
 	gateway.ServiceType = "urn:schemas-upnp-org:service:WANIPConnection:1"
 	gateway.Active = true
@@ -53,7 +57,7 @@ func (gateway *Gateway) send(message string, c chan string) error {
 				//doesn't timeout
 			}
 		}()
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second)
 		c <- ""
 		conn.Close()
 	}(conn)
@@ -61,11 +65,11 @@ func (gateway *Gateway) send(message string, c chan string) error {
 	if err != nil {
 		return fmt.Errorf("resolve udp addr error %v", err)
 	}
-	locaAddr, err := net.ResolveUDPAddr("udp", gateway.LocalHost+":")
+	localAddr, err := net.ResolveUDPAddr("udp", ":")
 	if err != nil {
 		return fmt.Errorf("resolve udp addr error %v", err)
 	}
-	conn, err = net.ListenUDP("udp", locaAddr)
+	conn, err = net.ListenUDP("udp", localAddr)
 	if err != nil {
 		return fmt.Errorf("listen udp error %v", err)
 	}
@@ -75,17 +79,19 @@ func (gateway *Gateway) send(message string, c chan string) error {
 		return fmt.Errorf("send message error %v", err)
 	}
 	buf := make([]byte, 1024)
-	n, _, err := conn.ReadFromUDP(buf)
+	n, addr, err := conn.ReadFromUDP(buf)
 	if err != nil {
 		return fmt.Errorf("recv message error %v", err)
 	}
+	gatewayAddr, _ := net.ResolveUDPAddr("udp", addr.String())
+	gateway.LocalAddr = gatewayAddr.IP.String()
 
 	result := string(buf[:n])
 	c <- result
 	return nil
 }
 
-func (gateway *Gateway) resolve(result string) {
+func (gateway *Gateway) resolve(result string) error {
 	lines := strings.Split(result, "\r\n")
 	for _, line := range lines {
 		nameValues := strings.SplitAfterN(line, ":", 2)
@@ -99,11 +105,16 @@ func (gateway *Gateway) resolve(result string) {
 			gateway.Cache = nameValues[1]
 		case "LOCATION":
 			urls := strings.Split(strings.Split(nameValues[1], "//")[1], "/")
-			gateway.Host = urls[0]
+			addr, err := net.ResolveUDPAddr("udp", urls[0])
+			if err != nil {
+				return err
+			}
+			gateway.Host = net.JoinHostPort(gateway.LocalAddr, strconv.Itoa(addr.Port))
 			gateway.DeviceDescUrl = "/" + urls[1]
 		case "SERVER":
 			gateway.GatewayName = nameValues[1]
 		default:
 		}
 	}
+	return nil
 }

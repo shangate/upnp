@@ -6,42 +6,53 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 type Upnp struct {
-	Gateway          Gateway
-	GatewayInsideIP  string
-	GatewayOutsideIP string
-	CtrlUrl          string
+	localAddr        string
+	gateway          Gateway
+	gatewayInsideIP  string
+	gatewayOutsideIP string
+	ctrlUrl          string
+}
+
+func NewUpnp() (upnp *Upnp, err error) {
+	upnp = &Upnp{}
+	err = upnp.checkExternalIP()
+	if err != nil {
+		return nil, err
+	}
+	return upnp, nil
 }
 
 func (upnp *Upnp) AddPortMapping(localPort, remotePort int, protocol string) (err error) {
-	if upnp.GatewayOutsideIP == "" {
+	if upnp.gatewayOutsideIP == "" {
 		if err := upnp.checkExternalIP(); err != nil {
 			return err
 		}
 	}
-	if ok := SendRequestForAddPortMapping("http://"+upnp.Gateway.Host+upnp.CtrlUrl, upnp.Gateway.LocalHost, localPort, remotePort, protocol); ok {
+	if ok := SendRequestForAddPortMapping("http://"+upnp.gateway.Host+upnp.ctrlUrl, upnp.localAddr, localPort, remotePort, protocol); ok {
 		log.Println("add port mapping successfully：protocol:", protocol, "local:", localPort, "remote:", remotePort)
 	} else {
-		upnp.Gateway.Active = false
+		upnp.gateway.Active = false
 		return fmt.Errorf("add port mapping failed")
 	}
 	return nil
 }
 
 func (upnp *Upnp) RemovePortMapping(remotePort int, protocol string) (err error) {
-	if upnp.GatewayOutsideIP == "" {
+	if upnp.gatewayOutsideIP == "" {
 		if err := upnp.checkExternalIP(); err != nil {
 			return err
 		}
 	}
-	return SendRequestForRemovePortMapping("http://"+upnp.Gateway.Host+upnp.CtrlUrl, remotePort, protocol)
+	return SendRequestForRemovePortMapping("http://"+upnp.gateway.Host+upnp.ctrlUrl, remotePort, protocol)
 }
 
 func (upnp *Upnp) checkExternalIP() (err error) {
-	if upnp.GatewayOutsideIP == "" {
-		upnp.GatewayOutsideIP, err = upnp.getExternalIP()
+	if upnp.gatewayOutsideIP == "" {
+		upnp.gatewayOutsideIP, err = upnp.getExternalIP()
 		if err != nil {
 			return err
 		}
@@ -50,12 +61,12 @@ func (upnp *Upnp) checkExternalIP() (err error) {
 }
 
 func (upnp *Upnp) getExternalIP() (ip string, err error) {
-	if upnp.CtrlUrl == "" {
+	if upnp.ctrlUrl == "" {
 		if err := upnp.getDeviceDesc(); err != nil {
 			return ip, err
 		}
 	}
-	return SendRequestForExternalIP("http://" + upnp.Gateway.Host + upnp.CtrlUrl)
+	return SendRequestForExternalIP("http://" + upnp.gateway.Host + upnp.ctrlUrl)
 }
 
 func (upnp *Upnp) searchGateway() (err error) {
@@ -66,15 +77,15 @@ func (upnp *Upnp) searchGateway() (err error) {
 		}
 	}(err)
 
-	if upnp.Gateway.LocalHost == "" {
-		conn, err := net.Dial("udp", "shangate.com:80")
+	if upnp.localAddr == "" {
+		conn, err := net.DialTimeout("udp", "google.com:80", time.Second*3)
 		if err != nil {
 			return fmt.Errorf("network error")
 		}
 		defer conn.Close()
-		upnp.Gateway.LocalHost = strings.Split(conn.LocalAddr().String(), ":")[0]
+		upnp.localAddr = strings.Split(conn.LocalAddr().String(), ":")[0]
 	}
-	ok := upnp.Gateway.Send()
+	ok := upnp.gateway.Send()
 	if ok {
 		return nil
 	}
@@ -82,15 +93,15 @@ func (upnp *Upnp) searchGateway() (err error) {
 }
 
 func (upnp *Upnp) getDeviceDesc() (err error) {
-	if upnp.GatewayInsideIP == "" {
+	if upnp.gateway.DeviceDescUrl == "" {
 		if err := upnp.searchGateway(); err != nil {
 			return err
 		}
 	}
-	upnp.CtrlUrl, err = SendForDescription("http://"+upnp.Gateway.Host+upnp.Gateway.DeviceDescUrl, upnp.Gateway.Host, upnp.Gateway.ServiceType)
+	upnp.ctrlUrl, err = SendForDescription("http://"+upnp.gateway.Host+upnp.gateway.DeviceDescUrl, upnp.gateway.Host, upnp.gateway.ServiceType)
 	if err != nil {
 		return err
 	}
-	upnp.Gateway.Active = true
+	upnp.gateway.Active = true
 	return nil
 }

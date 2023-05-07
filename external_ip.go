@@ -7,14 +7,22 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func SendRequestForExternalIP(url string) (ip string, err error) {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+	}
+	client := http.Client{Transport: tr, Timeout: time.Second}
+
 	request := buildRequestForExternalIP(url)
-	response, _ := http.DefaultClient.Do(request)
-	resultBody, _ := ioutil.ReadAll(response.Body)
-	if response.StatusCode == 200 {
-		return resolveForExternalIP(string(resultBody))
+	response, _ := client.Do(request)
+	if response != nil {
+		resultBody, _ := ioutil.ReadAll(response.Body)
+		if response.StatusCode == 200 {
+			return resolveForExternalIP(string(resultBody))
+		}
 	}
 	return ip, fmt.Errorf("send request for external ip error")
 }

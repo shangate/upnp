@@ -6,14 +6,22 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func SendForDescription(url string, gatewayHost string, serviceType string) (ctrlUrl string, err error) {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+	}
+	client := http.Client{Transport: tr, Timeout: time.Second}
+
 	request := buildRequestForDescription(url, gatewayHost)
-	response, _ := http.DefaultClient.Do(request)
-	resultBody, _ := ioutil.ReadAll(response.Body)
-	if response.StatusCode == 200 {
-		return resolve(serviceType, string(resultBody)), nil
+	response, _ := client.Do(request)
+	if response != nil {
+		resultBody, _ := ioutil.ReadAll(response.Body)
+		if response.StatusCode == 200 {
+			return resolve(serviceType, string(resultBody)), nil
+		}
 	}
 	return ctrlUrl, fmt.Errorf("request description error")
 }
