@@ -78,7 +78,7 @@ func (upnp *Upnp) searchGateway() (err error) {
 	}(err)
 
 	if upnp.localAddr == "" {
-		conn, err := net.DialTimeout("udp", "google.com:80", time.Second*3)
+		conn, err := net.DialTimeout("udp4", "google.com:80", time.Second*3)
 		if err != nil {
 			return fmt.Errorf("network error")
 		}
